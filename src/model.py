@@ -6,7 +6,13 @@ import numpy as np
 import sys
 import torch.nn.functional as F
 sys.path.append("./auto_LiRPA")
-from auto_LiRPA import BoundedModule
+try:
+    # BoundedModule is only needed for robust_model=True (SA-DQN/CROP-style defenses).
+    # PyPI auto_LiRPA==0.3 is incompatible with torch>=2.x; the natural victim and the
+    # world-model trainer use robust_model=False, so make this import optional.
+    from auto_LiRPA import BoundedModule
+except Exception:
+    BoundedModule = None
 import math
 
 
@@ -15,7 +21,7 @@ Variable = lambda *args, **kwargs: autograd.Variable(*args, **kwargs).cuda() if 
 
 class Flatten(nn.Module):
     def forward(self, x):
-        return x.view(x.size(0), -1)
+        return x.reshape(x.size(0), -1)  # .reshape: torch>=2 rejects .view on non-contiguous conv output
 
 
 class QNetwork(nn.Module):
