@@ -113,10 +113,11 @@ class Trainer(StateDictMixin):
         if cfg.initialization.path_to_ckpt is not None:
             self.agent.load(**cfg.initialization)
 
-        #Load your reference policy here for training the diffusion model
+        #Load your reference policy here for training the diffusion model (env-aware; abs paths robust to hydra chdir=True)
         self.policy = model_setup(cfg.env.train.id, test_env, False, None, True, True, 1).to(self._device)
-        #self.policy.features.load_state_dict(torch.load('src/pre_trained/Pong-natural.model'))
-        #self.policy.features.load_state_dict(torch.load('src/pre_trained/Freeway-natural.model'))
+        _pre = '/home/ruslan/Long-Horizon-Adversarial-AI/external/shift/src/pre_trained'
+        _victim = f'{_pre}/Pong-natural.model' if 'Pong' in cfg.env.train.id else f'{_pre}/Freeway-natural.model'
+        self.policy.features.load_state_dict(torch.load(_victim))
         # Collectors
         self._train_collector = make_collector(
             train_env, self.agent.actor_critic, self.policy, self.train_dataset, cfg.collection.train.epsilon

@@ -1,0 +1,14 @@
+# Trained artifacts & experiment outputs (large; created locally)
+outputs/
+ae/
+test_pic/
+results_*/
+wandb/
+# Local virtualenv
+.venv-shift/
+.venv/
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
