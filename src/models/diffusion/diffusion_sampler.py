@@ -553,7 +553,9 @@ class DiffusionSampler:
                 #print(logits)
         return x, trajectory
     
-    def sample_next_obs_classifier_guide_fade_v(self, obs: Tensor, act: Tensor, target_act: Tensor, policy, max_guidance, true_state, ae = None, true_obs = False) -> Tuple[Tensor, List[Tensor]]:
+    def sample_next_obs_classifier_guide_fade_v(self, obs: Tensor, act: Tensor, target_act: Tensor, policy, max_guidance, true_state, ae = None, true_obs = False, realism_weight = 1.0) -> Tuple[Tensor, List[Tensor]]:
+        # realism_weight scales the AE realism-guidance gradient (default 1.0 = original
+        # SHIFT behavior; higher pushes generated frames harder toward the clean manifold).
         diff = torch.nn.MSELoss(reduce= 'sum')
         add_factor = 0.00
         device = obs.device
@@ -616,7 +618,7 @@ class DiffusionSampler:
                     for index in range(x.shape[0]):
                         grad_1[index] = (grad_1[index]/grad_1_norm[index])
                     #print(grad_1)
-                    x = x - 1 * grad_1
+                    x = x - realism_weight * grad_1
                 x = x - grads
                 denoised = self.denoiser.denoise(x, sigma, obs, act)
                 alpha_1, alpha_2 = strength_scheduler(total_steps, time) 
