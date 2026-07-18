@@ -24,6 +24,16 @@ try:
 except Exception:
     import gym  # type: ignore
 
+import sys as _sys, types as _types
+# wrappers.py imports vizdoom + airgym at module load for the doom/airsim envs,
+# which the Atari clean-frame path never uses. Stub them so the import succeeds
+# without those heavy, unused deps (repro: ae_paths.patch).
+_viz = _types.ModuleType("vizdoom")
+_viz.gymnasium_wrapper = _types.ModuleType("vizdoom.gymnasium_wrapper")
+_sys.modules.setdefault("vizdoom", _viz)
+_sys.modules.setdefault("vizdoom.gymnasium_wrapper", _viz.gymnasium_wrapper)
+_sys.modules.setdefault("airgym", _types.ModuleType("airgym"))
+
 from wrappers import make_atari, make_atari_cart, wrap_deepmind, wrap_pytorch, ObservationWrapper
 from model import model_setup
 
@@ -32,7 +42,7 @@ from model import model_setup
 # -----------------------------
 ENV_CFG = {
     "PongNoFrameskip-v4": dict(crop_shift=10, restrict_actions=4),
-    "FreewayNoFrameskip-v4": dict(crop_shift=0, restrict_actions=0),
+    "FreewayNoFrameskip-v4": dict(crop_shift=0, restrict_actions=3),
     "RoadRunnerNoFrameskip-v4": dict(crop_shift=20, restrict_actions=True),
     "AirsimCar-v0": dict(crop_shift=0, restrict_actions=0),
 }
@@ -129,8 +139,8 @@ def parse_args():
     ap.add_argument("--env", default="FreewayNoFrameskip-v4", help="Env id")
     ap.add_argument("--num-trajs", type=int, default=10)
     ap.add_argument("--traj-len", type=int, default=5000)
-    ap.add_argument("--out", default="./freeway_pic_traj")
-    ap.add_argument("--policy-ckpt", default="./src/pre_trained/Freeway-natural.model")
+    ap.add_argument("--out", default=None)
+    ap.add_argument("--policy-ckpt", default=None)
     ap.add_argument("--epsilon", type=float, default=0.5)
     ap.add_argument("--dueling", action="store_true", default= True)
     ap.add_argument("--model-width", type=int, default=1)
@@ -140,6 +150,15 @@ def parse_args():
 
 def main():
     args = parse_args()
+    # SHIFT_ARTIFACTS-relative clean-frame dump + natural victim policy (repro: ae_paths.patch)
+    art = os.environ.get("SHIFT_ARTIFACTS")
+    short = "pong" if "Pong" in args.env else ("freeway" if "Freeway" in args.env
+            else args.env.split("NoFrameskip")[0].lower())
+    if args.out is None:
+        args.out = os.path.join(art, "pics", short) if art else "./{}_pic_traj".format(short)
+    if args.policy_ckpt is None:
+        args.policy_ckpt = os.environ.get("SHIFT_REF_POLICY") or \
+            "./src/pre_trained/{}-natural.model".format("Pong" if short == "pong" else "Freeway")
     dump_trajectories(
         env_id=args.env,
         num_trajs=args.num_trajs,

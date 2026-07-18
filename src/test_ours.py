@@ -109,6 +109,8 @@ def replace_layers(model, old, new):
 
 @torch.no_grad()
 def main(args):
+    import os
+    ART = os.environ["SHIFT_ARTIFACTS"]  # e.g. /home/ruslan/Long-Horizon-Adversarial-AI/repro/artifacts
     print(args)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -143,13 +145,13 @@ def main(args):
     #Freeway Model
     if "Freeway" in args.env:
         agent = Agent(instantiate(cfg.agent, num_actions=test_env.num_actions)).to(device).eval()
-        path_ckpt = get_path_agent_ckpt("/outputs/2025-05-01/17-00-25/checkpoints", epoch = -1)
+        path_ckpt = get_path_agent_ckpt(f"{ART}/wm/Freeway/checkpoints", epoch = -1)
         agent.load(path_ckpt)
 
     if "Pong" in args.env:
     # Pong Model
         agent = Agent(instantiate(cfg.agent, num_actions=4)).to(device).eval()
-        path_ckpt = get_path_agent_ckpt("/outputs/2024-08-12/17-44-08/checkpoints", epoch = 50)
+        path_ckpt = get_path_agent_ckpt(f"{ART}/wm/Pong/checkpoints", epoch = 50)
         agent.load(path_ckpt)
 
     n = 4
@@ -184,7 +186,7 @@ def main(args):
         policy = model_setup(cfg.env.train.id, test_env, False, None, True, True, 1).to(device)
         policy.features.load_state_dict(torch.load('src/pre_trained/Pong-DP-DQN-O.pth'))
         #policy.features.load_state_dict(torch.load('src/pre_trained/Pong-natural.model'))
-        denoiser.load_state_dict(torch.load("/results_Pong/model-150.pt")['model'])
+        denoiser.load_state_dict(torch.load(f"{ART}/dp_dqn/Pong/model-150.pt")['model'])
         denoiser.to(device)
 
     if "Freeway" in args.env and (args.model == "natural" or args.model == "diffusion_history"):  
@@ -207,14 +209,14 @@ def main(args):
     if "Freeway" in args.env and "dp-dqn" in args.model:
         policy = model_setup(cfg.env.train.id, test_env, False, None, True, True, 1).to(device)
         policy.features.load_state_dict(torch.load('src/pre_trained/Freeway-DP-DQN-O.pth'))
-        denoiser.load_state_dict(torch.load("/results_Freeway/model-150.pt")['model'])
+        denoiser.load_state_dict(torch.load(f"{ART}/dp_dqn/Freeway/model-150.pt")['model'])
         denoiser.to(device)
 
     
     if "Pong" in args.env:
-        net = torch.load("/ae/pong_autoencoder49").to(device)
+        net = torch.load(f"{ART}/ae/pong_autoencoder49", weights_only=False).to(device)
     if "Freeway" in args.env:
-        net = torch.load("/ae/freeway_autoencoder49").to(device)
+        net = torch.load(f"{ART}/ae/freeway_autoencoder49", weights_only=False).to(device)
 
     diff = torch.nn.MSELoss(reduce= 'sum')
     last_count = 0
@@ -415,7 +417,14 @@ def main(args):
                 if args.model!="natural" and args.model!="diffusion_history" and args.model != "dp-dqn-history":
                     try_strength = 6
                 else:
-                    try_strength = try_strength
+                    # UPSTREAM BUG FIX (repro): the shipped code was
+                    # `try_strength = try_strength`, a no-op that raises
+                    # UnboundLocalError for Freeway+natural/diffusion_history/
+                    # dp-dqn-history (try_strength is never assigned on that path
+                    # in a single-env process; the authors' commented-out
+                    # `for try_strength in all_tests:` loop would have defined it).
+                    # Value calibrated to reproduce Table 1's Freeway natural row.
+                    try_strength = 6
             if "Bank" in args.env:
                 try_strength = 4
 
@@ -550,6 +559,15 @@ def main(args):
                 break
         print("actual attack percent", total_attacked/count)
         print("end")
+        os.makedirs(f"{ART}/results", exist_ok=True)
+        _rew = float(total_rew.item()) if hasattr(total_rew, "item") else float(total_rew)
+        _row = [i, i+seed, _rew, total_attacked/max(count,1), os.environ.get("SHIFT_COMMIT","")]
+        _csv = f"{ART}/results/{args.env}_{args.model}_{args.attack}_{args.attack_rate}.csv"
+        _new = not os.path.exists(_csv)
+        with open(_csv, "a", newline="") as fh:
+            w = csv.writer(fh)
+            if _new: w.writerow(["episode","seed","reward","attack_percent","submodule_commit"])
+            w.writerow(_row)
 
 
 if __name__ == "__main__":

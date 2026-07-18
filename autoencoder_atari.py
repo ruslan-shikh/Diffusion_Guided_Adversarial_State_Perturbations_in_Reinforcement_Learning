@@ -16,6 +16,7 @@ from tqdm import tqdm
 import cv2
 from autoencoder_models import *
 import re
+import os
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # print(device)
@@ -250,10 +251,20 @@ if __name__ == '__main__':
 
     #train_set, val_set = generatedataset(10000)
     image_size = 84
-    dataset = Dataset('/freeway_pic_traj', image_size)
-    short = range(0,50000)
+    # SHIFT_ARTIFACTS-relative I/O + env-selectable checkpoint name (repro: ae_paths.patch)
+    ART = os.environ["SHIFT_ARTIFACTS"]
+    AE_ENV = os.environ.get("SHIFT_AE_ENV", "pong").lower()  # 'pong' or 'freeway'
+    pic_dir = os.path.join(ART, "pics", AE_ENV)
+    ae_dir = os.path.join(ART, "ae")
+    test_pic_dir = os.path.join(ART, "test_pic", AE_ENV)
+    os.makedirs(ae_dir, exist_ok=True)
+    os.makedirs(test_pic_dir, exist_ok=True)
+    dataset = Dataset(pic_dir, image_size)
+    short = range(0, min(50000, len(dataset)))
     dataset = torch.utils.data.Subset(dataset, short)
-    train_set, val_set = torch.utils.data.random_split(dataset, [int(0.95*len(dataset)), int(0.05*len(dataset))])
+    n_total = len(dataset)
+    n_val = max(1, int(0.05 * n_total))
+    train_set, val_set = torch.utils.data.random_split(dataset, [n_total - n_val, n_val])
     """
     Initialize Hyperparameters
     """
@@ -309,8 +320,8 @@ if __name__ == '__main__':
 
         print('Epoch {}: Loss {}'.format(epoch, loss))
         #print(out[0].shape)
-        cv2.imwrite('./test_pic/test_pic_'+str(epoch)+'.png', (out[0].detach().cpu().numpy().transpose(1,2,0))*255)
-        torch.save(net, "./ae/pong_autoencoder"+str(epoch))
+        cv2.imwrite(os.path.join(test_pic_dir, 'test_pic_'+str(epoch)+'.png'), (out[0].detach().cpu().numpy().transpose(1,2,0))*255)
+        torch.save(net, os.path.join(ae_dir, AE_ENV+"_autoencoder"+str(epoch)))
 
     # """
     # The following part takes a random image from test loader to feed into the VAE.

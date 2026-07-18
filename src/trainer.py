@@ -1,5 +1,6 @@
 from datetime import datetime
 from functools import partial
+import os
 from pathlib import Path
 import shutil
 import time
@@ -115,6 +116,9 @@ class Trainer(StateDictMixin):
 
         #Load your reference policy here for training the diffusion model
         self.policy = model_setup(cfg.env.train.id, test_env, False, None, True, True, 1).to(self._device)
+        _ref = os.environ.get("SHIFT_REF_POLICY")  # path to natural victim weights for THIS env
+        if _ref:
+            self.policy.features.load_state_dict(torch.load(_ref))
         #self.policy.features.load_state_dict(torch.load('src/pre_trained/Pong-natural.model'))
         #self.policy.features.load_state_dict(torch.load('src/pre_trained/Freeway-natural.model'))
         # Collectors
