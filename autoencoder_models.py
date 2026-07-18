@@ -156,7 +156,7 @@ def _get_data_dep_hook(init_scale):
         # Fix weight
         size = tuple(-1 if i == ch_out_dim else 1 for i in range(out.dim()))
         weight_size = module.weight.size()
-        module.weight.data *= init_scale / scale.view(size)
+        module.weight.data *= init_scale / scale.reshape(size)
         assert module.weight.size() == weight_size
 
         # Fix output in-place so we can continue forward pass
@@ -272,7 +272,7 @@ class Norm_3d_15(nn.Module):
     def encode(self, x):
         x = self.encoder(x)
         #print(x.shape)
-        x = x.view(-1, self.resize)
+        x = x.reshape(-1, self.resize)
         #print(x.shape)
         return self.fc1(x), self.fc2(x)
 
@@ -287,18 +287,18 @@ class Norm_3d_15(nn.Module):
 
     def decode(self, z):
         h1 = self.relu(self.d1(z))
-        h1 = h1.view(-1, self.latent, 10, 10)
+        h1 = h1.reshape(-1, self.latent, 10, 10)
         h1 = self.decoder(h1)
         return h1
 
     def get_latent_var(self, x):
-        mu, logvar = self.encode(x.view(-1, self.nc, self.ndf, self.ngf))
+        mu, logvar = self.encode(x.reshape(-1, self.nc, self.ndf, self.ngf))
         z = self.reparametrize(mu, logvar)
         return z
 
     def sample_prior(self, n_imgs, **kwargs):
         z = self.pz.sample(torch.tensor([n_imgs, self.latent_variable_size])).to(device)
-        z = z.view(n_imgs,self.latent_variable_size)
+        z = z.reshape(n_imgs,self.latent_variable_size)
         mean = self.decode(z)
         return mean  # pxz.sample()
 
@@ -354,7 +354,7 @@ class Norm_3d_15_ae(nn.Module):
     def encode(self, x):
         x = self.encoder(x)
         #print(x.shape)
-        x = x.view(-1, self.resize)
+        x = x.reshape(-1, self.resize)
         #print(x.shape)
         return self.fc1(x)
 
@@ -369,18 +369,18 @@ class Norm_3d_15_ae(nn.Module):
 
     def decode(self, z):
         h1 = self.relu(self.d1(z))
-        h1 = h1.view(-1, self.latent, 10, 10)
+        h1 = h1.reshape(-1, self.latent, 10, 10)
         h1 = self.decoder(h1)
         return h1
 
     # def get_latent_var(self, x):
-    #     mu, logvar = self.encode(x.view(-1, self.nc, self.ndf, self.ngf))
+    #     mu, logvar = self.encode(x.reshape(-1, self.nc, self.ndf, self.ngf))
     #     z = self.reparametrize(mu, logvar)
     #     return z
 
     def sample_prior(self, n_imgs, **kwargs):
         z = self.pz.sample(torch.tensor([n_imgs, self.latent_variable_size])).to(device)
-        z = z.view(n_imgs,self.latent_variable_size)
+        z = z.reshape(n_imgs,self.latent_variable_size)
         mean = self.decode(z)
         return mean  # pxz.sample()
 
@@ -449,11 +449,11 @@ class Norm_3d_Conv_15(nn.Module):
     def get_features(self, x):
         mu, logvar = self.encode(x)
         #z = self.reparametrize(mu, logvar)
-        return mu.view(-1, (int)(self.latent/2) * self.image_out_size * self.image_out_size)
+        return mu.reshape(-1, (int)(self.latent/2) * self.image_out_size * self.image_out_size)
 
     def sample_prior(self, n_imgs, **kwargs):
         z = self.pz.sample(torch.tensor([n_imgs, (int)(self.latent/2),self.image_out_size, self.image_out_size])).to(device)
-        z = z.view(n_imgs,(int)(self.latent/2),self.image_out_size, self.image_out_size)
+        z = z.reshape(n_imgs,(int)(self.latent/2),self.image_out_size, self.image_out_size)
         mean = self.decode(z)
         return mean  # pxz.sample()
 
